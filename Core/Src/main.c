@@ -214,7 +214,7 @@ void Task_ArchiveData(void) {
         float h = bme->get_value(bme->instance, 1);
         float p = bme->get_value(bme->instance, 2);
         //IR_DebugPrint(&ir_decoder, "Archive call: T=%.2f, H=%.1f, P=%.2f\n", t, h, p);
-        Archive_AddEntry(t, h, p);   // вместо Archive_ForceAddEntry
+        Archive_AddEntry(t, h, p);   //
         //Archive_AddEntry(22.72f, 42.5f, 988.39f);
     } else {
         IR_DebugPrint(&ir_decoder, "BME280 not ready\n");
