@@ -258,7 +258,7 @@ void I2C_ForceReset(void) {
     gpio_init.Pin = GPIO_PIN_6 | GPIO_PIN_7; // Укажите ваши пины SCL/SDA
     gpio_init.Mode = GPIO_MODE_INPUT;
     gpio_init.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOB, &gpio_init); // Укажите ваш порт (GPIOB, GPIOA и т.д.)
+    HAL_GPIO_Init(GPIOB, &gpio_init); //
 
     HAL_Delay(100);
 
