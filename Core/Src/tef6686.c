@@ -660,53 +660,59 @@ void Radio_Seek_Service(void) {
     if (!is_seeking) return;
 
     static uint32_t last_step_tick = 0;
-    // Увеличиваем интервал до 80мс (с учетом HAL_Delay внутри останется время на отрисовку)
     if (Millis_Get() - last_step_tick < 80) return;
     last_step_tick = Millis_Get();
 
-    // 1. Шаг 5 (50 кГц) для максимальной точности
-    if (seek_up_dir) radio.freq_x100 += 5;
-    else radio.freq_x100 -= 5;
+    if (seek_up_dir) radio.freq_x100 += 10;
+    else radio.freq_x100 -= 10;
 
-    // Границы FM
     if (radio.freq_x100 > 10800) radio.freq_x100 = 8750;
     if (radio.freq_x100 < 8750) radio.freq_x100 = 10800;
 
-    // 2. Быстрая перестройка для замера (Mode 3)
     TEF_SetCmd(32, 1, 2, 3, radio.freq_x100);
-
-    // 3. ПАУЗА: Даем DSP время на анализ (50мс — "золотой стандарт" для этого чипа)
     HAL_Delay(50);
 
-    // 4. Читаем данные качества
     int16_t q[7];
     TEF_GetCmd(32, 128, q, 7);
+    int16_t level = q[1];
 
-    int16_t level = q[1];  // Уровень сигнала (RSSI)
-    int16_t offset = q[4]; // Отклонение от центра
+    IR_DebugPrint(&ir_decoder, "Seek: freq=%d, level=%d\n", radio.freq_x100, level);
+    radio_freq_updated = 1;
 
-    radio_freq_updated = 1; // Обновляем VFD (будет бежать плавно)
+    static uint8_t good_cnt = 0;
+    if (level > 500) {   // Повышенный порог
+        good_cnt++;
+        if (good_cnt >= 2) {
+            is_seeking = false;
 
-    // 5. УМНОЕ УСЛОВИЕ ОСТАНОВКИ
-    // Для очень мощных станций расширяем окно Offset, для слабых — сужаем
-    bool offset_ok = false;
-    if (level > 500) {
-        offset_ok = (offset > -40 && offset < 40); // Мощная станция
+            // Пост-коррекция только на ±100 кГц (два соседних шага)
+            int16_t best_freq = radio.freq_x100;
+            int16_t best_level = level;
+            int16_t deltas[] = {-10, 0, 10};   // -100 кГц и +100 кГц
+            for (int i = 0; i < 3; i++) {
+                int16_t test_freq = radio.freq_x100 + deltas[i];
+                if (test_freq < 8750 || test_freq > 10800) continue;
+                TEF_SetCmd(32, 1, 2, 3, test_freq);
+                HAL_Delay(30);
+                int16_t test_q[7];
+                TEF_GetCmd(32, 128, test_q, 7);
+                int16_t test_level = test_q[1];
+                IR_DebugPrint(&ir_decoder, "  peak: %d -> L=%d\n", test_freq, test_level);
+                if (test_level > best_level) {
+                    best_level = test_level;
+                    best_freq = test_freq;
+                }
+            }
+            TEF_SetCmd(32, 1, 2, 1, best_freq);
+            radio.freq_x100 = best_freq;
+            IR_DebugPrint(&ir_decoder, "!!! FOUND: %d.%02d MHz | L:%d (peak)\n",
+                          best_freq/100, best_freq%100, best_level);
+            radio_show_message("STATION OK", 1000);
+            good_cnt = 0;
+            return;
+        }
     } else {
-        offset_ok = (offset > -20 && offset < 20); // Обычная станция
-    }
-
-    // Порог уровня 300 (30 dBuV) — это уверенный прием без шумов
-    if (level > 300 && offset_ok) {
-        is_seeking = false;
-
-        // Фиксация на станции (Mode 1 — прыжок в прослушивание)
-        TEF_SetCmd(32, 1, 2, 1, radio.freq_x100);
-
-        IR_DebugPrint(&ir_decoder, "!!! FOUND: %d.%02d MHz | L:%d O:%d\n",
-                      radio.freq_x100/100, radio.freq_x100%100, level, offset);
-
-        radio_show_message("STATION OK", 1000);
+        good_cnt = 0;
     }
 }
 

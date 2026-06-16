@@ -28,6 +28,8 @@
 #include "sensor_manager.h"
 #include "app_states.h"
 #include "app_display.h"
+#include "app_ir_event.h"
+#include "app_ir_handlers.h"
 #include "app_ir.h"
 #include "ir_config.h"
 #include "eeprom.h"
@@ -100,7 +102,11 @@ static void Task_StateMachine(void) {
 	StateMachine_Process();
 }
 
-static void Task_IR_Process(void) { APP_IR_Process(); }
+static void Task_IR_Process(void) {
+    APP_IR_Process(); // Декодирует сигналы и помещает события в очередь
+    IR_ProcessEvents(); // Обрабатывает события из очереди
+}
+
 static void Task_Render(void) {
 	Display_RenderBuffer();
     if (StateMachine_GetState() == STATE_RADIO) {
@@ -350,6 +356,9 @@ int main(void)
 
     // Инициализация датчиков
     SENSOR_InitAll();
+
+    // Инициализация очереди
+    IR_Event_Queue_Init();
 
     // Инициализация планировщика
     TaskScheduler_Init();

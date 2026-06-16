@@ -2,6 +2,7 @@
 #include "main.h"
 #include "ir_nec.h"
 #include "ir_config.h"
+#include "app_ir_event.h"
 #include "state_machine.h"
 #include "millis.h"
 
@@ -33,29 +34,21 @@ void APP_IR_Init(void) {
 }
 
 void APP_IR_Process(void) {
-    if (!ir_decoder.ready_flag) return;
-
-    IR_NEC_Result result = IR_NEC_Decode(&ir_decoder);
-
-    IR_DebugPrint(&ir_decoder, "IR: addr=0x%04X, cmd=0x%02X, status=%d, repeat=%d, raw=%d\n",
-                  result.address, result.command, result.status, result.is_repeat, result.raw_data);
-
-    if (result.status == IR_STATUS_OK) {
-        if (result.is_repeat) {
-            repeat_pending = true;
-        } else {
-            // новое нажатие – сохраняем в pending_*
-            pending_address = result.address;
-            pending_command = result.command;
-            new_command_pending = true;
-            // также сохраняем в last_* для геттеров
-            last_address = result.address;
-            last_command = result.command;
-            last_was_repeat = false;
-            last_is_repeat = false;
-        }
-    }
-    IR_NEC_ResetDecoder(&ir_decoder);
+	if (!ir_decoder.ready_flag)
+		return;
+	IR_NEC_Result result = IR_NEC_Decode(&ir_decoder);
+	IR_DebugPrint(&ir_decoder,
+			"IR: addr=0x%04X, cmd=0x%02X, status=%d, repeat=%d, raw=%d\n",
+			result.address, result.command, result.status, result.is_repeat,
+			result.raw_data);
+	if (result.status == IR_STATUS_OK) {
+		IR_Event_t ev;
+		ev.address = result.address;
+		ev.command = result.command;
+		ev.is_repeat = result.is_repeat;
+		IR_Event_Queue_Push(&ev);
+	}
+	IR_NEC_ResetDecoder(&ir_decoder);
 }
 
 bool APP_IR_GetCommand(uint16_t *addr, uint8_t *cmd) {
