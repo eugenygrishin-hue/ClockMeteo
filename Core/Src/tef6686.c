@@ -685,7 +685,7 @@ void Radio_Seek_Service(void) {
         if (good_cnt >= 2) {
             is_seeking = false;
 
-            // Пост-коррекция только на ±100 кГц (два соседних шага)
+            // Пост-коррекция только на ±100 кГц (+-два соседних шага)
             int16_t best_freq = radio.freq_x100;
             int16_t best_level = level;
             int16_t deltas[] = {-10, 0, 10};   // -100 кГц и +100 кГц
