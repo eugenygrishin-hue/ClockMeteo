@@ -2,7 +2,7 @@
 #include "main.h"
 #include "ir_nec.h"
 
-// Убедитесь, что здесь указан правильный I2C handle, используемый для RDA5807M.
+// Убедитесь, что здесь указан правильный I2C handle, используемый для TEF6686.
 // Если радиомодуль подключён к hi2c1, замените hi2c3 на hi2c1.
 extern I2C_HandleTypeDef hi2c1;   // I2C для радиомодуля
 extern IR_NEC_Decoder ir_decoder;

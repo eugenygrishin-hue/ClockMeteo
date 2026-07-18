@@ -74,7 +74,7 @@ void Radio_SetMute(bool mute);
 // Получение уровня сигнала в dBuV
 int16_t Radio_GetLevel(void);
 
-// Совместимость с именами RDA5807
+
 void Radio_PowerOn(void);
 void Radio_PowerOff(void);
 void Radio_SetVolume(uint8_t vol);

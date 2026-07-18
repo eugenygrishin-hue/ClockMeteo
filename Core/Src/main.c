@@ -118,7 +118,7 @@ static void Task_Render(void) {
 static void RadioIndicatorsTask(void) {
 }
 
-// Новая задача для периодического вызова RDA5807M_ProcessRDS (40 мс)
+
 static void RDS_Task(void) {
     if (StateMachine_GetState() == STATE_RADIO) {
         Radio_ProcessRDS();
@@ -401,7 +401,7 @@ int main(void)
 
     //HAL_Delay(3000);
 
-    // Сканирование шины hi2c1 (RDA5807)
+    // Сканирование шины hi2c1 (TEF6686)
     //I2C_Scan(&hi2c1, "I2C1");
     // Сканирование шины hi2c2 (DS3231, 24C256)
     //I2C_Scan(&hi2c2, "I2C2");

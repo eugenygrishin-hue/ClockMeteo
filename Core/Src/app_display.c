@@ -5,7 +5,7 @@
 #include "app_ir.h"
 #include "archive.h"
 #include "millis.h"
-//#include "radio_rda5807m.h"
+
 #include "tef6686.h"
 #include "app_states.h"
 #include "alarm.h"
@@ -38,7 +38,7 @@ extern uint8_t radio_freq_updated;
 static uint16_t last_displayed_freq = 0;
 // Объявляем внешние переменные (должны быть определены в других модулях)
 extern bool rds_active;          // из app_states.c
-extern char rds_ps_name[9];           // из radio_rda5807m.c
+extern char rds_ps_name[9];           
 int16_t smoothed_rssi;
 
 // Запуск анимации для указанной позиции и направления

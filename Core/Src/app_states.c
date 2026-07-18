@@ -8,7 +8,7 @@
 #include "vfd_driver.h"
 #include "app_display.h"
 #include "archive.h"
-//#include "radio_rda5807m.h"
+
 #include "tef6686.h"
 #include "task_scheduler.h"
 #include "alarm.h"
@@ -240,7 +240,7 @@ void Alarm_Volume_Service(void) {
             last_volume_tick = now;
             current_alarm_vol++;
 
-            // Отправляем команду в чип (пока RDA5807, потом TEF6686)
+            // Отправляем команду в TEF6686
             Radio_SetVolume(current_alarm_vol);
 
             // Опционально: вывод в дебаг для контроля
@@ -854,7 +854,7 @@ static void on_radio_enter(void) {
 	}
 
     IR_DebugPrint(&ir_decoder, "Entered STATE_RADIO, state=%d\n", StateMachine_GetState());
-    //RDA5807M_DumpRegisters();
+    
 }
 
 static void on_radio_exit(void) {

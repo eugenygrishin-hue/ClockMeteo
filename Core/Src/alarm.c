@@ -1,6 +1,6 @@
 #include "alarm.h"
 #include "eeprom.h"
-#include "radio_rda5807m.h"
+#include "tef6686.h"
 #include "app_states.h"
 #include <string.h>
 
@@ -63,14 +63,14 @@ void Alarm_StartRinging(void) {
     snooze_active = false;
 
     // Включаем радио на последней частоте
-    RDA5807M_PowerOn(3); // Громкость 3 для мягкого пробуждения
+    Radio_PowerOn(); // Громкость 3 для мягкого пробуждения
     radio_show_message("!!! ALARM !!!", 5000);
 }
 
 void Alarm_Stop(void) {
     alarm_is_ringing = false;
     snooze_active = false;
-    RDA5807M_PowerOff();
+    Radio_PowerOff();
     radio_show_message("Alarm Stop", 2000);
 }
 
@@ -81,7 +81,7 @@ void Alarm_Snooze(void) {
     snooze_active = true;
     snooze_timer = HAL_GetTick() + (2 * 60 * 1000); // 2 минуты
 
-    RDA5807M_PowerOff();
+    Radio_PowerOff();
     radio_show_message("Snooze 2 min", 2000);
 }
 
