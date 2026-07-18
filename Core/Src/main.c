@@ -476,7 +476,7 @@ int main(void)
 
 	        // 2. Если не Power - кладем обратно!
 	        // (Добавь эту функцию в ir_nec.c)
-	        APP_IR_PushBack(a, c);
+	        //APP_IR_PushBack(a, c);
 	    }
 	    StateMachine_Process();
 
@@ -549,7 +549,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 20000;
+  hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;

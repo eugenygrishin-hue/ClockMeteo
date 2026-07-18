@@ -6,6 +6,9 @@
 #include <string.h>
 #include <stdio.h>
 
+#define TUNER_POWER_ON()  HAL_GPIO_WritePin(GPIOA, TUNER_RST_Pin, GPIO_PIN_SET)
+#define TUNER_POWER_OFF() HAL_GPIO_WritePin(GPIOA, TUNER_RST_Pin, GPIO_PIN_RESET)
+
 extern I2C_HandleTypeDef hi2c1; // Укажи свой номер шины
 
 extern void IR_DebugPrint(void *decoder, const char *fmt, ...);
@@ -136,25 +139,59 @@ int16_t Radio_GetLevel(void) {
     return quality[1]; // Уровень сигнала в dBuV * 10
 }
 
-void TEF6686_Init (void) {
-    const uint8_t *pa = DSP_INIT;
+HAL_StatusTypeDef TEF6686_Init(void) {
+    const uint8_t* pa = DSP_INIT;
+    uint16_t packet_num = 0;
+
     while (1) {
         uint8_t len = *pa++;
-        if (len == 0) break;
+        if (len == 0) break; // Конец патча
 
         if (len == 2 && *pa == 0xFF) {
+            // Команда задержки внутри патча (например, 0xFF 0x05 = ждать 5 мс)
             HAL_Delay(*(pa + 1));
             pa += 2;
         } else {
-            // Добавляем проверку HAL_OK
-            if (HAL_I2C_Master_Transmit(&hi2c1, TEF_I2C_ADDR, (uint8_t*)pa, len, 500) != HAL_OK) {
-                // Если ошибка — пробуем еще раз или выводим в дебаг
-                IR_DebugPrint(&ir_decoder, "I2C Init Error at len %d\n", len);
+            uint8_t tx_retry = 0;
+            HAL_StatusTypeDef status;
+
+            // ✅ КРИТИЧНО: Если это пакет 269 (или близкий к нему), даём дополнительную задержку
+            // Это команда AUDIO модуля, которая требует больше времени на обработку
+            if (packet_num >= 265 && packet_num <= 275) {
+                HAL_Delay(20); // Дополнительная пауза перед критичными пакетами
             }
+
+            do {
+                status = HAL_I2C_Master_Transmit(&hi2c1, TEF_I2C_ADDR, (uint8_t*)pa, len, 500);
+                if (status == HAL_OK) {
+                    // ✅ Увеличили задержку после каждого пакета до 5 мс
+                    // Это даёт DSP достаточно времени на обработку
+                    HAL_Delay(5);
+                    break;
+                }
+
+                tx_retry++;
+                HAL_Delay(20); // Увеличили задержку между retry
+            } while (tx_retry < 3);
+
+            if (status != HAL_OK) {
+                IR_DebugPrint(&ir_decoder, "FATAL: Packet %d (len=%d) failed after 3 retries.\n", packet_num, len);
+                IR_DebugPrint(&ir_decoder, "Failed packet data: ");
+                for (int i = 0; i < len; i++) {
+                    IR_DebugPrint(&ir_decoder, "%02X ", pa[i]);
+                }
+                IR_DebugPrint(&ir_decoder, "\n");
+
+                return HAL_ERROR;
+            }
+
             pa += len;
-            HAL_Delay(1); // Маленькая пауза между командами патча
+            packet_num++;
         }
     }
+
+    IR_DebugPrint(&ir_decoder, "Total packets sent: %d\n", packet_num);
+    return HAL_OK;
 }
 
 void TEF6686_ForceStereoSettings(void) {
@@ -215,21 +252,44 @@ void I2C_Bus_Recovery(void) {
 
 
 void Radio_Init(void) {
-    // На всякий случай дублируем включение питания (прямая логика — SET)
-    HAL_GPIO_WritePin(GPIOA, TUNER_RST_Pin, GPIO_PIN_SET);
+    IR_DebugPrint(&ir_decoder, "=== TEF6686 Power Cycle Start ===\n");
 
-    // Даем электролиту время зарядиться, а чипу — проснуться
-    HAL_Delay(150);
+    // 1. Гарантированно ВЫКЛЮЧАЕМ питание для сброса остаточного заряда
+    TUNER_POWER_OFF();
+    HAL_Delay(400); // Ждем разрядки конденсаторов модуля (КРИТИЧНО!)
 
-    // Проверяем шину I2C
-    if (HAL_I2C_IsDeviceReady(&hi2c1, TEF_I2C_ADDR, 5, 200) != HAL_OK) {
-        IR_DebugPrint(&ir_decoder, "TEF6686 I2C ERROR (NO POWER?)\n");
-        return;
+    // 2. ВКЛЮЧАЕМ питание
+    TUNER_POWER_ON();
+    HAL_Delay(200); // Ждем стабилизации внутренних цепей TEF6686
+
+    // 3. Проверяем, отвечает ли тюнер по I2C
+    uint8_t retry_count = 0;
+    while (HAL_I2C_IsDeviceReady(&hi2c1, TEF_I2C_ADDR, 3, 100) != HAL_OK) {
+        retry_count++;
+        IR_DebugPrint(&ir_decoder, "I2C Check Failed, attempt %d/3\n", retry_count);
+
+        if (retry_count >= 3) {
+            IR_DebugPrint(&ir_decoder, "Attempting I2C Bus Recovery (Clock stretching)...\n");
+            I2C_Bus_Recovery(); // Твоя существующая функция "проталкивания" SCL
+            HAL_Delay(50);
+
+            if (retry_count >= 5) {
+                IR_DebugPrint(&ir_decoder, "FATAL: TEF6686 NOT RESPONDING! Check hardware.\n");
+                return;
+            }
+        }
+        HAL_Delay(100);
     }
 
-    // Загрузка патча
-    TEF6686_Init();
-    IR_DebugPrint(&ir_decoder, "Patch loaded.\n");
+    IR_DebugPrint(&ir_decoder, "TEF6686 Responds on I2C. Loading patch...\n");
+
+    // 4. Загружаем патч с жестким контролем
+    if (TEF6686_Init() == HAL_OK) {
+        IR_DebugPrint(&ir_decoder, "✅ Patch loaded successfully\n");
+    } else {
+        IR_DebugPrint(&ir_decoder, "❌ Patch loading FAILED! Tuner is in undefined state.\n");
+        // Здесь можно попробовать сделать еще один цикл Power Cycle, но пока оставим так для диагностики
+    }
 }
 
 

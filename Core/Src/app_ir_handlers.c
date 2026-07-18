@@ -29,7 +29,7 @@ void IR_ProcessEvents(void) {
             // Если событие не обработано глобально, передаём его локальному обработчику.
             // Сохраняем команду в старые переменные, чтобы существующие обработчики состояний (on_main_process и др.)
             // могли её получить через APP_IR_GetCommand.
-            APP_IR_PushBack(ev.address, ev.command);
+            //APP_IR_PushBack(ev.address, ev.command);
         }
     }
 }
