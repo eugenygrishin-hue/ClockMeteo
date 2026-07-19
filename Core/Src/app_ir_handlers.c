@@ -1,4 +1,3 @@
-#include "app_ir_event.h"
 #include "state_machine.h"
 #include "app_ir.h"
 #include "tef6686.h"

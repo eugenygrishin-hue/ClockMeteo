@@ -2,7 +2,6 @@
 #include "main.h"
 #include "ir_nec.h"
 #include "ir_config.h"
-#include "app_ir_event.h"
 #include "state_machine.h"
 #include "millis.h"
 
@@ -11,9 +10,13 @@ extern TIM_HandleTypeDef htim9;
 
 IR_NEC_Decoder ir_decoder;
 
+// Глобальная переменная для хранения последней команды
+static volatile uint16_t pending_address = 0;
+static volatile uint8_t pending_command = 0;
+static volatile bool command_pending = false;
+
 void APP_IR_Init(void) {
     IR_NEC_InitDecoder(&ir_decoder, &huart1);
-    IR_Event_Queue_Init(); // <--- ВАЖНО: Инициализируем очередь при старте!
 
 #ifdef IR_DEBUG
     IR_DebugPrint(&ir_decoder, "IR Receiver started\r\n");
@@ -23,76 +26,59 @@ void APP_IR_Init(void) {
 }
 
 void APP_IR_Process(void) {
-    if (!ir_decoder.ready_flag)
-        return;
+    if (!ir_decoder.ready_flag) return;
 
     IR_NEC_Result result = IR_NEC_Decode(&ir_decoder);
 
-#ifdef IR_DEBUG
-    IR_DebugPrint(&ir_decoder,
-            "IR: addr=0x%04X, cmd=0x%02X, status=%d, repeat=%d, raw=%d\n",
-            result.address, result.command, result.status, result.is_repeat,
-            result.raw_data);
-#endif
+    if (result.address != 0 || result.command != 0) {
+        // Логируем ТОЛЬКО когда команда реально пришла с пульта
+        IR_DebugPrint(&ir_decoder, "[IR] Received: addr=0x%04X, cmd=0x%02X, rep=%d\n",
+                      result.address, result.command, result.is_repeat);
 
-    if (result.status == IR_STATUS_OK) {
-        IR_Event_t ev;
-        ev.address = result.address;
-        ev.command = result.command;
-        ev.is_repeat = result.is_repeat;
-        IR_Event_Queue_Push(&ev);
+        // Сохраняем команду в глобальную переменную
+        __disable_irq();
+        if (!result.is_repeat) {
+            pending_address = result.address;
+            pending_command = result.command;
+            command_pending = true;
+        }
+        __enable_irq();
     }
-
-    // Сбрасываем декодер для приёма следующей посылки
     IR_NEC_ResetDecoder(&ir_decoder);
 }
 
-// ✅ ИСПРАВЛЕНО: Честно берём команду из очереди
 bool APP_IR_GetCommand(uint16_t *addr, uint8_t *cmd) {
-    IR_Event_t ev;
-    if (IR_Event_Queue_Pop(&ev)) {
-        // Игнорируем коды повтора (удержание кнопки), чтобы не было "залипания"
-        // Если нужна обработка удержания, для этого должна быть отдельная логика
-        if (!ev.is_repeat) {
-            *addr = ev.address;
-            *cmd = ev.command;
-            return true;
-        }
+    __disable_irq();
+    if (command_pending) {
+        *addr = pending_address;
+        *cmd = pending_command;
+        command_pending = false; // Сбрасываем флаг после чтения
+        __enable_irq();
+        return true;
     }
+    __enable_irq();
     return false;
 }
 
-// ✅ ИСПРАВЛЕНО: Проверяем, есть ли в очереди хотя бы одна команда
-bool APP_IR_PeekCommand(uint16_t *addr, uint8_t *cmd) {
-    // В простой реализации достаточно знать, что очередь не пуста.
-    // Сама команда будет извлечена при вызове APP_IR_GetCommand
-    return !IR_Event_Queue_IsEmpty();
-}
-
-// ❌ УДАЛЕНО: APP_IR_PushBack больше не нужен и был источником бага.
-// Если команда не извлечена через GetCommand, она и так остаётся в очереди.
-// Если компилятор выдаст ошибку о недостающей функции, просто удали её вызовы в app_states.c
-// или раскомментируй заглушку ниже:
-/*
 void APP_IR_PushBack(uint16_t addr, uint8_t cmd) {
-    // Заглушка для совместимости, если где-то ещё вызывается
-}
-*/
-
-// ✅ ИСПРАВЛЕНО: Отдельная проверка на повтор (если стейт-машина захочет обработать удержание)
-bool APP_IR_GetRepeat(void) {
-    IR_Event_t ev;
-    // Простая реализация: если в очереди есть repeat, мы могли бы его достать.
-    // Но для базовой работы лучше полагаться на то, что GetCommand их фильтрует.
-    return false;
+    __disable_irq();
+    pending_address = addr;
+    pending_command = cmd;
+    command_pending = true;
+    __enable_irq();
 }
 
-uint16_t APP_IR_GetLastAddress(void) {
-    // Возвращаем 0, так как pending переменных больше нет.
-    // Если это критично, нужно хранить last_addr отдельно.
-    return 0;
+bool APP_IR_PeekCommand(uint16_t *addr, uint8_t *cmd) {
+    __disable_irq();
+    bool has_cmd = command_pending;
+    if (has_cmd) {
+        *addr = pending_address;
+        *cmd = pending_command;
+    }
+    __enable_irq();
+    return has_cmd;
 }
 
-uint8_t APP_IR_GetLastCommand(void) {
-    return 0;
-}
+bool APP_IR_GetRepeat(void) { return false; }
+uint16_t APP_IR_GetLastAddress(void) { return pending_address; }
+uint8_t APP_IR_GetLastCommand(void) { return pending_command; }

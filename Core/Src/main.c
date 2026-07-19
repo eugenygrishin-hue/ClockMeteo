@@ -358,7 +358,7 @@ int main(void)
     SENSOR_InitAll();
 
     // Инициализация очереди
-    IR_Event_Queue_Init();
+    //IR_Event_Queue_Init();
 
     // Инициализация планировщика
     TaskScheduler_Init();
@@ -442,25 +442,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-	    // В main.c
 	    uint16_t a; uint8_t c;
 	    if (APP_IR_GetCommand(&a, &c)) {
 	        if (a == 0x010E && c == 0x01) {
 	            SystemState_t current = StateMachine_GetState();
-
-	            // Если выходим из основного режима радио
 	            if (current == STATE_RADIO) {
 	                radio_show_message("Radio Off", 2000);
 	                radio_msg_end = Millis_Get() + 2000;
-	            }
-	            // Если выходим из настройки будильника (любой подрежим: время или радио)
-	            else if (current == STATE_EDIT_ALARM || current == STATE_ALARM_SELECT_RADIO) {
-	                Alarm_Init(); // Откат незаписанных правок будильника
+	            } else if (current == STATE_EDIT_ALARM || current == STATE_ALARM_SELECT_RADIO) {
+	                Alarm_Init();
 	            }
 
-	            // ГЛОБАЛЬНЫЙ СБРОС ДЛЯ ВСЕХ РЕЖИМОВ РАДИО И БУДИЛЬНИКА:
-	            // Если мы были в любом из этих трех состояний — гарантированно тушим железо
 	            if (current == STATE_RADIO || current == STATE_EDIT_ALARM || current == STATE_ALARM_SELECT_RADIO) {
 	                Radio_Mute(true);
 	                Radio_PowerOff();
@@ -473,16 +465,12 @@ int main(void)
 	            StateMachine_SetState(STATE_MAIN);
 	            continue;
 	        }
-
-	        // 2. Если не Power - кладем обратно!
-	        // (Добавь эту функцию в ir_nec.c)
-	        //APP_IR_PushBack(a, c);
+	        APP_IR_PushBack(a, c);
 	    }
+
 	    StateMachine_Process();
-
-	    TaskScheduler_Run();       // выполнение запланированных задач
-	    __WFI();                   // переход в режим пониженного энергопотребления
-
+	    TaskScheduler_Run();
+	    __WFI();               // переход в режим пониженного энергопотребления
   }
   /* USER CODE END 3 */
 }

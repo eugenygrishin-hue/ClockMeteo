@@ -331,10 +331,13 @@ static void on_radio_process(void) {
 	uint16_t addr;
 	uint8_t cmd;
 
-//	IR_DebugPrint(&ir_decoder, "=== STATE_RADIO Process ===\n");
+	// Пытаемся получить команду из очереди
+	bool got_cmd = APP_IR_GetCommand(&addr, &cmd);
 
-	if (APP_IR_GetCommand(&addr, &cmd)) {
+	if (got_cmd) {
+	    IR_DebugPrint(&ir_decoder, "[STATE_RADIO] SUCCESS! Got cmd: 0x%02X (addr: 0x%04X)\n", cmd, addr);
 		IR_DebugPrint(&ir_decoder, "=== STATE_RADIO Process ===\n");
+		IR_DebugPrint(&ir_decoder, "[STATE_RADIO] GOT COMMAND: 0x%02X\n", cmd);
 		IR_DebugPrint(&ir_decoder, "IR Command: addr=0x%04X, cmd=0x%02X\n",
 				addr, cmd);
 
@@ -489,6 +492,9 @@ static void on_radio_process(void) {
 				Radio_StopPreviewScan();
 			}
 		}
+	} else {
+	    // ЭТОТ БЛОК ДОЛЖЕН ПЕЧАТАТЬСЯ, ЕСЛИ ОЧЕРЕДЬ ПУСТА
+	    IR_DebugPrint(&ir_decoder, "[STATE_RADIO] GetCommand returned FALSE (queue is empty)\n");
 	}
 }
 
