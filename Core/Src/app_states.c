@@ -328,100 +328,168 @@ static void on_main_process(void) {
 }
 
 static void on_radio_process(void) {
-    uint16_t addr;
-    uint8_t cmd;
+	uint16_t addr;
+	uint8_t cmd;
 
-    // 1. Тайм-аут сообщений (Оригинал сохранен)
-    /*if (radio_msg_end > 0 && Millis_Get() >= radio_msg_end && radio_temp_msg[0] != '\0') {
-        if (strcmp(radio_temp_msg, "Radio Off") == 0) {
-            StateMachine_SetState(STATE_MAIN);
-            radio_msg_end = 0;
-            radio_temp_msg[0] = '\0';
-        }
-    }*/
+//	IR_DebugPrint(&ir_decoder, "=== STATE_RADIO Process ===\n");
 
-    // 2. Логика Preview Scan (Оригинал сохранен)
-    if (preview_active && (Millis_Get() - preview_timer >= PREVIEW_TIME_MS)) {
-        preview_timer = Millis_Get();
-        Radio_NextPreset();
-        Radio_ResetStereoState();
-        radio_freq_updated = 1;
-    }
+	if (APP_IR_GetCommand(&addr, &cmd)) {
+		IR_DebugPrint(&ir_decoder, "=== STATE_RADIO Process ===\n");
+		IR_DebugPrint(&ir_decoder, "IR Command: addr=0x%04X, cmd=0x%02X\n",
+				addr, cmd);
 
-    // 3. Обработка ИК-пульта
-    if (APP_IR_GetCommand(&addr, &cmd)) {
-        if (addr == 0x010E) {
-            // Математика для кнопок 1-9 (убираем 9 веток switch!)
-            const uint8_t num_keys[9] = {0x88, 0x48, 0xC8, 0x28, 0xA8, 0x68, 0xE8, 0x18, 0x98};
-            for (uint8_t i = 0; i < 9; i++) {
-                if (cmd == num_keys[i]) {
-                	Radio_LoadPreset((i + 1) + (plus10_active ? 10 : 0));
-                	Radio_ResetStereoState();
-                    plus10_active = false;
-                    radio_freq_updated = 1;
+		// 1. Тайм-аут сообщений (Оригинал сохранен)
+		/*if (radio_msg_end > 0 && Millis_Get() >= radio_msg_end && radio_temp_msg[0] != '\0') {
+		 if (strcmp(radio_temp_msg, "Radio Off") == 0) {
+		 StateMachine_SetState(STATE_MAIN);
+		 radio_msg_end = 0;
+		 radio_temp_msg[0] = '\0';
+		 }
+		 }*/
 
-                    RDS_ResetRadioText();
+		// 2. Логика Preview Scan (Оригинал сохранен)
+		if (preview_active
+				&& (Millis_Get() - preview_timer >= PREVIEW_TIME_MS)) {
+			preview_timer = Millis_Get();
+			Radio_NextPreset();
+			Radio_ResetStereoState();
+			radio_freq_updated = 1;
+		}
 
-                    return; // Нашли кнопку — выходим из функции
-                }
-            }
+		// 3. Обработка ИК-пульта
+		if (APP_IR_GetCommand(&addr, &cmd)) {
+			if (addr == 0x010E) {
+				// Математика для кнопок 1-9 (убираем 9 веток switch!)
+				const uint8_t num_keys[9] = { 0x88, 0x48, 0xC8, 0x28, 0xA8,
+						0x68, 0xE8, 0x18, 0x98 };
+				for (uint8_t i = 0; i < 9; i++) {
+					if (cmd == num_keys[i]) {
+						Radio_LoadPreset((i + 1) + (plus10_active ? 10 : 0));
+						Radio_ResetStereoState();
+						plus10_active = false;
+						radio_freq_updated = 1;
 
-            // Остальные команды пульта 0x010E
-            switch (cmd) {
-                //case 0x01: radio_show_message("Radio Off", 2000); radio_msg_end = Millis_Get() + 2000; break;
-                case 0xDA: Radio_SeekPrev(); Radio_ResetStereoState(); radio_show_message("", 0); radio_freq_updated = 1; RDS_ResetRadioText();
-                break;
-                case 0xE3: Radio_ChangeVolume(true); RDS_ResetRadioText();
-                break;
-                case 0x13: Radio_ChangeVolume(false); break;
-                case 0x83: Radio_ToggleMute(); break;
-                case 0x23: Radio_AutoScanAndStore(); Radio_ResetStereoState(); RDS_ResetRadioText();
-                break;
-                case 0x3B:
-                	Radio_ToggleRDS();
-                	RDS_ResetRadioText();
-                    // Показываем на VFD короткую подсказку, какой режим включился
-                    if (radio_display_mode == 0) radio_show_message("FREQ ONLY", 1000);
-                    else if (radio_display_mode == 1) radio_show_message("RDS STATION", 1000);
-                    else if (radio_display_mode == 2) radio_show_message("RDS TEXT", 1000);
+						RDS_ResetRadioText();
 
-                    // Сразу же обновляем иконки, чтобы CD-диск мгновенно отреагировал на кнопку
-                    //update_radio_indicators();
-                break;
-                case 0xCB: Radio_PrintDiagnostic(); break;
-                case 0xB0: plus10_active = true; radio_freq_updated = 1; break;
-                case 0x02: if (plus10_active) { Radio_LoadPreset(20); Radio_ResetStereoState(); plus10_active = false; } radio_freq_updated = 1; break;
-                case 0x39: Radio_ClearPreset(radio_mem.current_idx); radio_freq_updated = 1; RDS_ResetRadioText();
-                break;
-                default: break;
-            }
-        }
-        else if (addr == 0x414E) {
-            // Команды пульта 0x414E (включая крест и EX BASS)
-            switch (cmd) {
-                case 0x0B: Radio_SeekNext(); Radio_ResetStereoState(); RDS_ResetRadioText();
-                break;
-                case 0x01: Radio_NextPreset(); Radio_ResetStereoState(); RDS_ResetRadioText();
-                break;
-                case 0x81: Radio_PrevPreset(); Radio_ResetStereoState(); RDS_ResetRadioText();
-                break;
-                case 0xC1: Radio_ManualStep(false); Radio_ResetStereoState(); RDS_ResetRadioText();
-                break;
-                case 0x41: Radio_ManualStep(true); Radio_ResetStereoState();
-                RDS_ResetRadioText();
-                break;
-                case 0x21: Radio_ConfirmStore(); radio_show_message("Stored", 2000); update_radio_indicators(); break;
-                case 0x69: Radio_ToggleBass(); radio_show_message(Radio_IsBassOn() ? "EX BASS ON" : "EX BASS OFF", 1500); break;
-                case 0xC9: Radio_StartPreviewScan(); RDS_ResetRadioText();
-                return; // Не останавливаем Preview сразу при его запуске
-                default: break;
-            }
-            // Автоматически останавливаем Preview Scan при ЛЮБОМ действии на пульте 0x414E
-            radio_show_message("", 0);
-            radio_freq_updated = 1;
-            Radio_StopPreviewScan();
-        }
-    }
+						return; // Нашли кнопку — выходим из функции
+					}
+				}
+
+				// Остальные команды пульта 0x010E
+				switch (cmd) {
+				//case 0x01: radio_show_message("Radio Off", 2000); radio_msg_end = Millis_Get() + 2000; break;
+				case 0xDA:
+					Radio_SeekPrev();
+					Radio_ResetStereoState();
+					radio_show_message("", 0);
+					radio_freq_updated = 1;
+					RDS_ResetRadioText();
+					break;
+				case 0xE3:
+					Radio_ChangeVolume(true);
+					RDS_ResetRadioText();
+					break;
+				case 0x13:
+					Radio_ChangeVolume(false);
+					break;
+				case 0x83:
+					Radio_ToggleMute();
+					break;
+				case 0x23:
+					Radio_AutoScanAndStore();
+					Radio_ResetStereoState();
+					RDS_ResetRadioText();
+					break;
+				case 0x3B:
+					Radio_ToggleRDS();
+					RDS_ResetRadioText();
+					// Показываем на VFD короткую подсказку, какой режим включился
+					if (radio_display_mode == 0)
+						radio_show_message("FREQ ONLY", 1000);
+					else if (radio_display_mode == 1)
+						radio_show_message("RDS STATION", 1000);
+					else if (radio_display_mode == 2)
+						radio_show_message("RDS TEXT", 1000);
+
+					// Сразу же обновляем иконки, чтобы CD-диск мгновенно отреагировал на кнопку
+					//update_radio_indicators();
+					break;
+				case 0xCB:
+					Radio_PrintDiagnostic();
+					break;
+				case 0xB0:
+					plus10_active = true;
+					radio_freq_updated = 1;
+					break;
+				case 0x02:
+					if (plus10_active) {
+						Radio_LoadPreset(20);
+						Radio_ResetStereoState();
+						plus10_active = false;
+					}
+					radio_freq_updated = 1;
+					break;
+				case 0x39:
+					Radio_ClearPreset(radio_mem.current_idx);
+					radio_freq_updated = 1;
+					RDS_ResetRadioText();
+					break;
+				default:
+					break;
+				}
+			} else if (addr == 0x414E) {
+				// Команды пульта 0x414E (включая крест и EX BASS)
+				switch (cmd) {
+				case 0x0B:
+					Radio_SeekNext();
+					Radio_ResetStereoState();
+					RDS_ResetRadioText();
+					break;
+				case 0x01:
+					Radio_NextPreset();
+					Radio_ResetStereoState();
+					RDS_ResetRadioText();
+					break;
+				case 0x81:
+					Radio_PrevPreset();
+					Radio_ResetStereoState();
+					RDS_ResetRadioText();
+					break;
+				case 0xC1:
+					Radio_ManualStep(false);
+					Radio_ResetStereoState();
+					RDS_ResetRadioText();
+					break;
+				case 0x41:
+					Radio_ManualStep(true);
+					Radio_ResetStereoState();
+					RDS_ResetRadioText();
+					break;
+				case 0x21:
+					Radio_ConfirmStore();
+					radio_show_message("Stored", 2000);
+					update_radio_indicators();
+					break;
+				case 0x69:
+					Radio_ToggleBass();
+					radio_show_message(
+							Radio_IsBassOn() ? "EX BASS ON" : "EX BASS OFF",
+							1500);
+					break;
+				case 0xC9:
+					Radio_StartPreviewScan();
+					RDS_ResetRadioText();
+					return; // Не останавливаем Preview сразу при его запуске
+				default:
+					break;
+				}
+				// Автоматически останавливаем Preview Scan при ЛЮБОМ действии на пульте 0x414E
+				radio_show_message("", 0);
+				radio_freq_updated = 1;
+				Radio_StopPreviewScan();
+			}
+		}
+	}
 }
 
 void Radio_ChangeVolume(bool up) {
