@@ -1,34 +1,44 @@
+#include "app_ir_handlers.h"
+#include "app_ir.h"       // Подключаем наш новый API
 #include "state_machine.h"
-#include "app_ir.h"
-#include "tef6686.h"
+// Добавь сюда другие нужные заголовки, например:
+// #include "tef6686.h"
+// #include "app_states.h"
 
-static bool IR_GlobalHandler(IR_Event_t *ev) {
-    switch(ev->command) {
-        case 0x0A: // AUDIO button
-            if (StateMachine_GetState() != STATE_RADIO) {
-                StateMachine_SetState(STATE_RADIO);
-                return true;
-            }
-            return false;
-        case 0x01: // POWER button
-            if (StateMachine_GetState() != STATE_MAIN) {
-                StateMachine_SetState(STATE_MAIN);
-                return true;
-            }
-            return false;
-        default:
-            return false;
-    }
-}
+bool IR_ProcessEvents(void) {
+    uint16_t addr;
+    uint8_t cmd;
 
-void IR_ProcessEvents(void) {
-    IR_Event_t ev;
-    while (IR_Event_Queue_Pop(&ev)) {
-        if (!IR_GlobalHandler(&ev)) {
-            // Если событие не обработано глобально, передаём его локальному обработчику.
-            // Сохраняем команду в старые переменные, чтобы существующие обработчики состояний (on_main_process и др.)
-            // могли её получить через APP_IR_GetCommand.
-            //APP_IR_PushBack(ev.address, ev.command);
+    // Пытаемся получить команду из нашей новой глобальной переменной
+    if (APP_IR_GetCommand(&addr, &cmd)) {
+
+        // ==========================================
+        // ЗДЕСЬ ОБРАБАТЫВАЮТСЯ "ГЛОБАЛЬНЫЕ" КОМАНДЫ
+        // (те, что должны работать из любого состояния, например, громкость)
+        // ==========================================
+
+        switch (cmd) {
+            case 0x41: // Пример: Кнопка Громкость+ (замени на свой код)
+                // ТВОЙ КОД ЗДЕСЬ: например, Radio_Volume_Up();
+                return true; // Команда успешно обработана, дальше не передаём
+
+            case 0x81: // Пример: Кнопка Громкость-
+                // ТВОЙ КОД ЗДЕСЬ: например, Radio_Volume_Down();
+                return true;
+
+            case 0xC1: // Пример: Кнопка Mute
+                // ТВОЙ КОМАНДА ЗДЕСЬ: например, Radio_ToggleMute();
+                return true;
+
+            default:
+                // Если это НЕ глобальная команда (например, переключение станций),
+                // мы возвращаем её обратно, чтобы её мог прочитать
+                // конкретный обработчик состояния (например, STATE_RADIO в app_states.c)
+                APP_IR_PushBack(addr, cmd);
+                return false;
         }
     }
+
+    // Команд от пульта в данный момент не было
+    return false;
 }

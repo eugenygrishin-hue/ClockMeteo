@@ -492,9 +492,6 @@ static void on_radio_process(void) {
 				Radio_StopPreviewScan();
 			}
 		}
-	} else {
-	    // ЭТОТ БЛОК ДОЛЖЕН ПЕЧАТАТЬСЯ, ЕСЛИ ОЧЕРЕДЬ ПУСТА
-	    IR_DebugPrint(&ir_decoder, "[STATE_RADIO] GetCommand returned FALSE (queue is empty)\n");
 	}
 }
 

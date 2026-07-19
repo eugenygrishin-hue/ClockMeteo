@@ -28,7 +28,6 @@
 #include "sensor_manager.h"
 #include "app_states.h"
 #include "app_display.h"
-#include "app_ir_event.h"
 #include "app_ir_handlers.h"
 #include "app_ir.h"
 #include "ir_config.h"
