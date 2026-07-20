@@ -962,6 +962,9 @@ static void on_alarm_edit_process(void) {
     uint8_t cmd;
     if (!APP_IR_GetCommand(&addr, &cmd)) return;
 
+    IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Got cmd: 0x%02X, is_edit_mode: %d\n", cmd, alarm_db.is_edit_mode);
+
+
     Alarm_t *a = &alarm_db.list[alarm_db.current_edit_idx];
 
     // --- ОБЩИЕ КОМАНДЫ ---
@@ -983,6 +986,7 @@ static void on_alarm_edit_process(void) {
             else if (cmd == 0xC9) { // Кнопка SETUP -> ВХОД В ПРАВКУ
                 alarm_db.is_edit_mode = true;
                 alarm_edit_pos = 1; // Начинаем с часов (H1)
+                IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Entered edit mode!\n");
             }
             else if (cmd == 0x21) { // Кнопка OK -> ФИНАЛЬНОЕ СОХРАНЕНИЕ И ВЫХОД
             	if (a->freq <= 870) a->freq = Get_Radio_Current_Freq();
