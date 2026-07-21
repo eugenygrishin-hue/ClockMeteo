@@ -1059,7 +1059,11 @@ static void on_alarm_edit_process(void) {
 
                 case 0x0A: // Кнопка AUDIO -> Вход в выбор радиостанции для будильника
                 {
+                	IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] 0x0A PRESSED! Entering Radio Select Mode.\n");
+
                     backup_alarm_freq = a->freq; // Тут хранится старое значение из EEPROM (например, 887)
+
+                    IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Backup freq from EEPROM: %d\n", backup_alarm_freq);
 
                     enable_sensor("BME280", false, 0);
                     enable_sensor("DS3231", false, 0);
@@ -1068,11 +1072,14 @@ static void on_alarm_edit_process(void) {
                     // И жестко приводим К МАСШТАБУ РАДИО x100 (умножаем на 10!)
                     if (a->freq >= 870 && a->freq <= 1080) {
                         radio.freq_x100 = a->freq * 10; // Превращаем 887 в 8870
+                        IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Setting radio.freq_x100 to: %d\n", radio.freq_x100);
                     } else {
                         radio.freq_x100 = 8870; // Дефолт 88.70 МГц
+                        IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Freq invalid, using default: 8870\n");
                     }
 
                     // Включаем тюнер (он чисто настроится на 8870 без костылей)
+                    IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Calling Radio_PowerOn()...\n");
                     Radio_PowerOn();
 
                     radio_freq_updated = 1;
@@ -1080,6 +1087,7 @@ static void on_alarm_edit_process(void) {
                     RDS_ResetRadioText();
                     TaskScheduler_SetTaskEnabled("RDS", true);
 
+                    IR_DebugPrint(&ir_decoder, "[ALARM_EDIT] Switching state to STATE_ALARM_SELECT_RADIO\n");
                     StateMachine_SetState(STATE_ALARM_SELECT_RADIO);
                 }
                 break;

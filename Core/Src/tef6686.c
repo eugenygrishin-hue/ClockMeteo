@@ -1,3 +1,4 @@
+#include "stm32f4xx_hal.h"
 #include "tef6686.h"
 #include "tef_init.h" // Твой массив DSP_INIT здесь
 #include "main.h"
@@ -9,6 +10,7 @@
 #define TUNER_POWER_ON()  HAL_GPIO_WritePin(GPIOA, TUNER_RST_Pin, GPIO_PIN_SET)
 #define TUNER_POWER_OFF() HAL_GPIO_WritePin(GPIOA, TUNER_RST_Pin, GPIO_PIN_RESET)
 
+extern IWDG_HandleTypeDef hiwdg;
 extern I2C_HandleTypeDef hi2c1; // Укажи свой номер шины
 
 extern void IR_DebugPrint(void *decoder, const char *fmt, ...);
@@ -183,6 +185,10 @@ HAL_StatusTypeDef TEF6686_Init(void) {
                 IR_DebugPrint(&ir_decoder, "\n");
 
                 return HAL_ERROR;
+            }
+
+            if (packet_num % 50 == 0) {
+                HAL_IWDG_Refresh(&hiwdg);
             }
 
             pa += len;
