@@ -436,10 +436,7 @@ int main(void)
         }
     }*/
 
-    HAL_IWDG_Start(&hiwdg);
-
-    while(1) { HAL_Delay(100); }
-
+    __HAL_IWDG_START(&hiwdg);
     IR_DebugPrint(&ir_decoder, "✅ IWDG Started (Timeout: ~3 sec)\n");
 
   /* USER CODE END 2 */
